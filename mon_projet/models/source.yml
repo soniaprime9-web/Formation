@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: demodb
+    database: DEMODB
+    schema: DEV
+    tables:
+      - name: business_employment
+        identifier: BUSINESS_EMPLOYMENT
+        description: "Source table BUSINESS_EMPLOYMENT in DEMODB.DEV"
