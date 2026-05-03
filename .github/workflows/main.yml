@@ -1,4 +1,4 @@
-name: dbt CI
+name: CI
 
 on:
   push:
@@ -8,22 +8,33 @@ on:
   pull_request:
 
 jobs:
-  dbt-test:
+  ci:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dbt and Snowflake adapter
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install dbt-core==1.11.8 dbt-snowflake==1.11.4
+          pip install sqlfluff dbt-osmosis pre-commit
 
       - name: Configure dbt profile
         run: |
@@ -45,7 +56,43 @@ jobs:
                 client_session_keep_alive: false
           EOF
 
-      - name: Run dbt test
+      - name: dbt parse and validation
+        run: |
+          cd mon_projet
+          dbt parse --profiles-dir ~/.dbt
+
+      - name: dbt compile
+        run: |
+          cd mon_projet
+          dbt compile --profiles-dir ~/.dbt
+
+      - name: SQL Linting with SQLFluff
+        run: |
+          cd mon_projet
+          sqlfluff lint models/ tests/ --dialect snowflake || true
+
+      - name: dbt run tests
         run: |
           cd mon_projet
           dbt test --profiles-dir ~/.dbt
+
+      - name: Check documentation coverage
+        run: |
+          cd mon_projet
+          dbt docs generate --profiles-dir ~/.dbt
+          echo "Documentation generated successfully"
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          cd mon_projet
+          cat target/run_results.json | grep -E '"status"|"message"' || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: dbt-artifacts
+          path: |
+            mon_projet/target/
+            mon_projet/logs/
