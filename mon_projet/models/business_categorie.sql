@@ -9,6 +9,6 @@ select
   source_data.*,
   case
     when source_data."Period" > 2013 then 'nouveau'
-    else 'ancien'
+    else 'ancienn'
   end as classification
 from source_data
